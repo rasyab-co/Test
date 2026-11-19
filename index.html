@@ -1,0 +1,89 @@
+index.html������������������������������������������������������������������������������������������0000600�0024100�0024100�00000027653�15277504531�007775� 0����������������������������������������������������������������������������������������������������ustar  ��������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0e14"><link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon.svg"><title>Latihan Trading</title>
+<style>
+:root{--bg:#0b0e14;--c:#151a24;--t:#e8ecf3;--m:#7d8798;--g:#16c784;--r:#ea3943;--a:#5b8cff}
+*{box-sizing:border-box;margin:0}body{background:var(--bg);color:var(--t);font:15px system-ui,sans-serif;padding-bottom:80px}
+.up{color:var(--g)}.dn{color:var(--r)}.m{color:var(--m);font-size:12px}
+header{padding:calc(env(safe-area-inset-top) + 14px) 16px 12px;background:linear-gradient(135deg,#1a2340,#0b0e14)}
+header b{font-size:26px;display:block}
+.row{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #1d2330}
+.row:active{background:var(--c)}.r{text-align:right}
+.card{background:var(--c);margin:12px 16px;padding:16px;border-radius:16px}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#10141c;border-top:1px solid #1d2330;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;padding:16px;background:none;border:0;color:var(--m);font-size:14px}nav button.on{color:var(--a);font-weight:700}
+.sheet{position:fixed;inset:0;background:var(--bg);overflow:auto;transform:translateY(100%);transition:.25s;z-index:5;padding:calc(env(safe-area-inset-top) + 12px) 16px 24px}
+.sheet.show{transform:none}canvas{width:100%;height:240px}
+.rg{display:flex;gap:8px;margin:10px 0}.rg button{flex:1;padding:8px;border-radius:8px;border:0;background:var(--c);color:var(--m)}.rg .on{background:var(--a);color:#fff}
+.btns{display:flex;gap:10px;margin-top:14px}.btns button,.go{flex:1;padding:16px;border:0;border-radius:12px;font-size:16px;font-weight:700;color:#fff}
+.buy{background:var(--g)}.sell{background:var(--r)}
+input{width:100%;padding:14px;margin:8px 0;border-radius:10px;border:1px solid #2a3142;background:var(--c);color:var(--t);font-size:18px}
+.x{background:none;border:0;color:var(--m);font-size:15px;padding:6px 0}
+#toast{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#222a3a;padding:12px 18px;border-radius:12px;z-index:9;opacity:0;transition:.3s}
+table{border-collapse:collapse;width:100%;font-size:13px;white-space:nowrap}th,td{padding:12px 10px;text-align:right}th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--bg)}th{color:var(--m);font-weight:500}tr{border-bottom:1px solid #1d2330}tr:active{background:var(--c)}
+.gr{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;background:var(--c);padding:14px;border-radius:14px;margin:12px 0}.gr b{color:var(--t);font-size:14px;font-weight:600}
+</style></head><body>
+<header><span class="m">IHSG • <span id="st">memuat…</span></span><b id="ih">–</b><span id="ic"></span></header>
+<main id="v"></main>
+<nav><button data-t="pasar" class="on">Pasar</button><button data-t="harga">Harga</button><button data-t="port">Portofolio</button><button data-t="riw">Riwayat</button></nav>
+<div class="sheet" id="d"></div><div id="toast"></div>
+<script>
+const W='https://GANTI-DENGAN-URL-WORKER-KAMU.workers.dev';
+const SYM=[['BBCA.JK','BBCA','Bank Central Asia','ID'],['BBRI.JK','BBRI','Bank Rakyat Indonesia','ID'],['BMRI.JK','BMRI','Bank Mandiri','ID'],['TLKM.JK','TLKM','Telkom Indonesia','ID'],['ASII.JK','ASII','Astra International','ID'],['GOTO.JK','GOTO','GoTo Gojek Tokopedia','ID'],['AAPL','AAPL','Apple Inc.','US'],['NVDA','NVDA','NVIDIA','US'],['TSLA','TSLA','Tesla','US'],['MSFT','MSFT','Microsoft','US']].map(a=>({y:a[0],n:a[1],t:a[2],m:a[3]}));
+const RG={'1d':['1d','5m'],'5d':['5d','30m'],'1mo':['1mo','1d'],'6mo':['6mo','1d'],'1y':['1y','1wk']};
+const $=s=>document.querySelector(s);
+let S=JSON.parse(localStorage.tp||'null')||{cash:1e8,pos:{},hist:[]},Q={},kurs=16000,tab='pasar',cur=null,rng='1d',side='buy',pts=[],oh=[],mode='line';
+const save=()=>localStorage.tp=JSON.stringify(S);
+const rp=n=>'Rp '+Math.round(n).toLocaleString('id-ID');
+const nm=(n,d=2)=>n.toLocaleString('id-ID',{minimumFractionDigits:d,maximumFractionDigits:d});
+const cl=n=>n>=0?'up':'dn';
+const toast=t=>{const e=$('#toast');e.textContent=t;e.style.opacity=1;setTimeout(()=>e.style.opacity=0,2200)};
+async function get(y,r='1d',i='5m'){const j=await(await fetch(`${W}?s=${encodeURIComponent(y)}&range=${r}&interval=${i}`)).json();const c=j.chart.result[0],k=c.indicators.quote[0],ts=c.timestamp||[],m=c.meta;
+const o=ts.map((t,i)=>[t*1000,k.open[i],k.high[i],k.low[i],k.close[i]]).filter(a=>a.slice(1).every(v=>v!=null));
+return{p:m.regularMarketPrice,pc:m.chartPreviousClose,hi:m.regularMarketDayHigh,lo:m.regularMarketDayLow,vol:m.regularMarketVolume,op:o[0]?o[0][1]:null,pts:o.map(a=>[a[0],a[4]]),ohlc:o}}
+const px=s=>Q[s.y]?Q[s.y].p*(s.m==='US'?kurs:1):null;
+async function refresh(){try{const all=[{y:'^JKSE'},{y:'USDIDR=X'},...SYM];
+const rs=await Promise.allSettled(all.map(s=>get(s.y)));
+rs.forEach((r,i)=>{if(r.status==='fulfilled')Q[all[i].y]=r.value});
+if(Q['USDIDR=X'])kurs=Q['USDIDR=X'].p;
+const h=Q['^JKSE'];if(h){const c=(h.p/h.pc-1)*100;$('#ih').textContent=nm(h.p);$('#ic').innerHTML=`<span class="${cl(c)}">${c>=0?'▲':'▼'} ${nm(Math.abs(c))}%</span>`}
+$('#st').textContent='update '+new Date().toLocaleTimeString('id-ID');
+}catch(e){$('#st').textContent='gagal memuat data'}render()}
+function render(){const v=$('#v');
+if(tab==='pasar')v.innerHTML=SYM.map((s,i)=>{const q=Q[s.y],c=q?(q.p/q.pc-1)*100:0;
+return`<div class="row" onclick="openD(${i})"><div><b>${s.n}</b> <span class="m">${s.m==='US'?'🇺🇸':'🇮🇩'}</span><br><span class="m">${s.t}</span></div><div class="r"><b>${q?(s.m==='US'?'$ ':'')+nm(q.p):'–'}</b><br><span class="${cl(c)}">${c>=0?'+':''}${nm(c)}%</span></div></div>`}).join('');
+if(tab==='harga'){const f=a=>a==null?'–':nm(a);v.innerHTML='<div style="overflow:auto"><table><tr><th>Saham</th><th>Harga</th><th>%</th><th>Buka</th><th>Tertinggi</th><th>Terendah</th><th>Volume</th></tr>'+SYM.map((s,i)=>{const q=Q[s.y];if(!q)return`<tr onclick="openD(${i})"><td><b>${s.n}</b></td><td colspan="6" class="m">memuat…</td></tr>`;const c=(q.p/q.pc-1)*100;return`<tr onclick="openD(${i})"><td><b>${s.n}</b><br><span class="m">${s.m==='US'?'USD':'IDR'}</span></td><td>${f(q.p)}</td><td class="${cl(c)}">${c>=0?'+':''}${nm(c)}%</td><td>${f(q.op)}</td><td>${f(q.hi)}</td><td>${f(q.lo)}</td><td>${q.vol==null?'–':Math.round(q.vol).toLocaleString('id-ID')}</td></tr>`}).join('')+'</table></div>'}
+if(tab==='port'){let tv=0,cost=0,rows='';
+SYM.forEach(s=>{const p=S.pos[s.n];if(!p||!p.q)return;const v=px(s)||p.avg,val=v*p.q,pl=val-p.avg*p.q;tv+=val;cost+=p.avg*p.q;
+rows+=`<div class="row"><div><b>${s.n}</b><br><span class="m">${p.q} lbr • avg ${rp(p.avg)}</span></div><div class="r">${rp(val)}<br><span class="${cl(pl)}">${pl>=0?'+':''}${rp(pl)}</span></div></div>`});
+const tot=S.cash+tv,pl=tv-cost;
+v.innerHTML=`<div class="card"><span class="m">Total aset</span><b style="font-size:26px;display:block">${rp(tot)}</b><span class="${cl(pl)}">P/L: ${pl>=0?'+':''}${rp(pl)}</span><br><span class="m">Saldo tunai ${rp(S.cash)} • Kurs USD ${rp(kurs)}</span></div>`+(rows||'<p class="m" style="text-align:center;padding:40px">Belum ada saham. Ayo mulai beli di tab Pasar!</p>')+`<div class="card"><button class="x" onclick="if(confirm('Reset semua data latihan?')){S={cash:1e8,pos:{},hist:[]};save();render()}">Reset akun latihan</button></div>`}
+if(tab==='riw')v.innerHTML=S.hist.length?S.hist.map(h=>`<div class="row"><div><b class="${h.s==='buy'?'up':'dn'}">${h.s==='buy'?'BELI':'JUAL'} ${h.n}</b><br><span class="m">${new Date(h.d).toLocaleString('id-ID')}</span></div><div class="r">${rp(h.v)}<br><span class="m">${h.q} lbr @ ${rp(h.p)}</span></div></div>`).join(''):'<p class="m" style="text-align:center;padding:40px">Belum ada transaksi.</p>'}
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));render()});
+async function openD(i){cur=SYM[i];rng='1d';$('#d').classList.add('show');paint();load()}
+function paint(){const s=cur,q=Q[s.y],c=q?(q.p/q.pc-1)*100:0,f=a=>a==null?'–':nm(a),own=(S.pos[s.n]||{}).q||0;
+$('#d').innerHTML=`<button class="x" onclick="$('#d').classList.remove('show')">← Kembali</button><h2>${s.n}</h2><span class="m">${s.t}</span>
+<div style="font-size:28px;font-weight:700;margin-top:8px">${q?(s.m==='US'?'$ ':'')+nm(q.p):'–'} <span class="${cl(c)}" style="font-size:16px">${c>=0?'+':''}${nm(c)}%</span></div>
+<div class="rg" style="max-width:220px"><button class="${mode==='line'?'on':''}" onclick="mode='line';paint()">Garis</button><button class="${mode==='candle'?'on':''}" onclick="mode='candle';paint()">Candle</button></div><canvas id="cv"></canvas><div class="rg">${Object.keys(RG).map(k=>`<button class="${k===rng?'on':''}" onclick="rng='${k}';paint();load()">${k.toUpperCase()}</button>`).join('')}</div>
+<div class="gr"><div class="m">Buka<br><b>${f(q&&q.op)}</b></div><div class="m">Tertinggi<br><b>${f(q&&q.hi)}</b></div><div class="m">Terendah<br><b>${f(q&&q.lo)}</b></div><div class="m">Tutup kemarin<br><b>${f(q&&q.pc)}</b></div><div class="m">Volume<br><b>${q&&q.vol!=null?Math.round(q.vol).toLocaleString('id-ID'):'–'}</b></div><div class="m">Kurs USD<br><b>${nm(kurs,0)}</b></div></div><p class="m">Dimiliki: ${own} ${s.m==='ID'?'lembar':'lembar'} • Tunai: ${rp(S.cash)}</p>
+<div class="btns"><button class="buy" onclick="trade('buy')">Beli</button><button class="sell" onclick="trade('sell')">Jual</button></div><div id="tf"></div>`;draw()}
+async function load(){try{const d=await get(cur.y,...RG[rng]);pts=d.pts;oh=d.ohlc;draw()}catch(e){toast('Gagal memuat grafik')}}
+function draw(){const c=$('#cv');if(!c)return;const w=c.width=c.clientWidth*2,h=c.height=480,x=c.getContext('2d');
+if(mode==='candle'){if(oh.length<2)return;const hi=Math.max(...oh.map(a=>a[2])),lo=Math.min(...oh.map(a=>a[3])),n=oh.length,st=w/n,bw=Math.max(2,st*.7),Y=a=>h-20-(a-lo)/(hi-lo||1)*(h-40);
+oh.forEach((a,i)=>{const cx=st*i+st/2,col=a[4]>=a[1]?'#16c784':'#ea3943';x.strokeStyle=x.fillStyle=col;x.lineWidth=2;x.beginPath();x.moveTo(cx,Y(a[2]));x.lineTo(cx,Y(a[3]));x.stroke();const t=Y(Math.max(a[1],a[4])),b=Y(Math.min(a[1],a[4]));x.fillRect(cx-bw/2,t,bw,Math.max(2,b-t))});return}
+if(pts.length<2)return;const v=pts.map(p=>p[1]),mn=Math.min(...v),mx=Math.max(...v),col=v[v.length-1]>=v[0]?'#16c784':'#ea3943';
+const X=i=>i/(v.length-1)*w,Y=a=>h-20-(a-mn)/(mx-mn||1)*(h-40);x.beginPath();v.forEach((a,i)=>i?x.lineTo(X(i),Y(a)):x.moveTo(X(i),Y(a)));x.strokeStyle=col;x.lineWidth=3;x.stroke();x.lineTo(w,h);x.lineTo(0,h);const g=x.createLinearGradient(0,0,0,h);g.addColorStop(0,col+'55');g.addColorStop(1,col+'00');x.fillStyle=g;x.fill()}
+function trade(sd){side=sd;const s=cur,u=s.m==='ID'?'lot (1 lot = 100 lembar)':'lembar';
+$('#tf').innerHTML=`<div class="card"><b class="${sd==='buy'?'up':'dn'}">${sd==='buy'?'BELI':'JUAL'} ${s.n}</b><input id="qy" type="number" inputmode="numeric" min="1" placeholder="Jumlah ${u}" oninput="est()"><div class="m" id="es">Masukkan jumlah</div><button class="go ${sd}" style="width:100%;margin-top:10px" onclick="exec()">Konfirmasi</button></div>`;$('#qy').focus()}
+function calc(){const s=cur,q=Math.floor(+$('#qy').value),sh=q*(s.m==='ID'?100:1),p=px(s);return{q,sh,p,v:sh*p}}
+function est(){const c=calc();$('#es').textContent=c.q>0&&c.p?`${c.sh} lembar × ${rp(c.p)} = ${rp(c.v)} (fee ${side==='buy'?'0,15':'0,25'}%)`:'Masukkan jumlah'}
+function exec(){const s=cur,c=calc();if(!(c.q>0)||!c.p)return toast('Jumlah tidak valid');const p=S.pos[s.n]||{q:0,avg:0};
+if(side==='buy'){const tot=c.v*1.0015;if(tot>S.cash)return toast('Saldo tidak cukup');S.cash-=tot;p.avg=(p.avg*p.q+c.v)/(p.q+c.sh);p.q+=c.sh}
+else{if(c.sh>p.q)return toast('Saham tidak cukup');S.cash+=c.v*0.9975;p.q-=c.sh}
+S.pos[s.n]=p;S.hist.unshift({s:side,n:s.n,q:c.sh,p:c.p,v:c.v,d:Date.now()});save();toast('Transaksi berhasil ✔');paint();load();render()}
+refresh();setInterval(refresh,30000);
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
+</script></body></html>
+�����������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������
